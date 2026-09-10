@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_random.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <math.h>
 
 static const char *TAG = "wooden_fish";
@@ -118,19 +120,18 @@ static void play_hit_effect(void) {
     lv_label_set_text(merit_pop, "+1");
     lv_obj_set_pos(merit_pop, 50, 60);
     lv_obj_set_style_text_color(merit_pop, lv_color_hex(C_GOLD), 0);
-    lv_obj_set_style_text_font(merit_pop, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(merit_pop, &lv_font_montserrat_14, 0);
     
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, merit_pop);
     lv_anim_set_duration(&a, 500);
-    lv_anim_set_start_val(&a, 255);
-    lv_anim_set_end_val(&a, 0);
-    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_opa);
+    lv_anim_set_values(&a, 255, 0);
+    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_opa);
     lv_anim_set_path_cb(&a, &lv_anim_path_ease_out);
     lv_anim_start(&a);
     
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(500));
     lv_obj_delete(merit_pop);
 }
 
@@ -179,7 +180,6 @@ static void do_shake(void) {
         s_wf.merit_count = WOODEN_FISH_MAX_MERIT;
     }
     
-    bsp_audio_play_shake();
     play_beep(1200, 150);
     refresh_merit();
     
@@ -228,14 +228,14 @@ void demo_wooden_fish_enter(void) {
     lv_label_set_text(s_label_title, "🪷 敲木鱼");
     lv_obj_set_pos(s_label_title, 32, 3);
     lv_obj_set_style_text_color(s_label_title, lv_color_hex(C_GOLD), 0);
-    lv_obj_set_style_text_font(s_label_title, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_font(s_label_title, &lv_font_montserrat_14, 0);
     
     // 功德显示
     s_label_merit = lv_label_create(s_screen);
     lv_label_set_text_fmt(s_label_merit, "功德: 0");
     lv_obj_set_pos(s_label_merit, 5, 17);
     lv_obj_set_style_text_color(s_label_merit, lv_color_hex(C_GOLD), 0);
-    lv_obj_set_style_text_font(s_label_merit, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_label_merit, &lv_font_montserrat_14, 0);
     
     // 连击显示
     s_label_combo = lv_label_create(s_screen);
@@ -254,7 +254,7 @@ void demo_wooden_fish_enter(void) {
     
     // 木鱼装饰线
     lv_obj_t *line = lv_line_create(s_fish_body);
-    static lv_point_t p[] = {{30, 45}, {78, 45}};
+    static lv_point_precise_t p[] = {{30, 45}, {78, 45}};
     lv_line_set_points(line, p, 2);
     lv_obj_set_style_line_color(line, lv_color_hex(C_LIGHT), 0);
     lv_obj_set_style_line_width(line, 2, 0);
@@ -271,7 +271,7 @@ void demo_wooden_fish_enter(void) {
     lv_label_set_text(s_label_tip, "OK敲 UP摇 DOWN重置");
     lv_obj_set_pos(s_label_tip, 8, 145);
     lv_obj_set_style_text_color(s_label_tip, lv_color_hex(0x666666), 0);
-    lv_obj_set_style_text_font(s_label_tip, &lv_font_montserrat_8, 0);
+    lv_obj_set_style_text_font(s_label_tip, &lv_font_montserrat_14, 0);
     
     lv_screen_load(s_screen);
 }
