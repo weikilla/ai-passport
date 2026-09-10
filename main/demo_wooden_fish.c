@@ -10,6 +10,8 @@
 #include "esp_timer.h"
 #include "esp_random.h"
 #include <math.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "wooden_fish";
 
