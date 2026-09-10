@@ -19,6 +19,7 @@
 static const char *TAG = "main";
 
 static const demo_entry_t DEMOS[] = {
+    { "木鱼",     demo_wooden_fish_enter, demo_wooden_fish_exit, demo_wooden_fish_key },
     { "Display", demo_display_enter, demo_display_exit, demo_display_key },
     { "Button",  demo_button_enter,  demo_button_exit,  demo_button_key  },
     { "Audio",   demo_audio_enter,   demo_audio_exit,   demo_audio_key   },
@@ -124,13 +125,14 @@ void app_main(void) {
     bsp_display_backlight(100);
 
     // 其余外设单项失败不阻塞:菜单里标 [FAIL],其他项照常可测。
-    s_ok[0] = true;                                   // Display 已确认可用
-    s_ok[1] = (bsp_button_init(on_key, NULL) == ESP_OK);
-    s_ok[2] = (bsp_audio_init() == ESP_OK);
-    s_ok[3] = (bsp_battery_init() == ESP_OK);
-    s_ok[4] = true;                                    // 页面内按需初始化并显示错误
-    s_ok[5] = true;
+    s_ok[0] = true;                                    // 木鱼 不需要额外检查
+    s_ok[1] = true;                                   // Display 已确认可用
+    s_ok[2] = (bsp_button_init(on_key, NULL) == ESP_OK);
+    s_ok[3] = (bsp_audio_init() == ESP_OK);
+    s_ok[4] = (bsp_battery_init() == ESP_OK);
+    s_ok[5] = true;                                    // 页面内按需初始化并显示错误
     s_ok[6] = true;
+    s_ok[7] = true;
 
     if (bsp_lvgl_lock(1000)) { enter_menu(); bsp_lvgl_unlock(); }
 
