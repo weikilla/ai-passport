@@ -1,6 +1,6 @@
 /**
  * @file demo_wooden_fish.c
- * @brief 敲木鱼 Demo - AI Passport
+ * @brief Wooden Fish Demo - AI Passport
  */
 #include "demo.h"
 #include "ui_pixel.h"
@@ -19,14 +19,14 @@ static const char *TAG = "wooden_fish";
 #define HIT_COOLDOWN_MS    200
 #define COMBO_TIMEOUT_MS   2000
 
-// 木鱼状态
+// Wooden fish state
 typedef enum {
     WF_STATE_IDLE = 0,
     WF_STATE_HIT,
     WF_STATE_SHAKE
 } wf_state_t;
 
-// 木鱼实例
+// Wooden fish instance
 typedef struct {
     int merit_count;
     wf_state_t state;
@@ -41,7 +41,7 @@ static wf_t s_wf = {
     .hit_count = 0
 };
 
-// LVGL 对象
+// LVGL objects
 static lv_obj_t *s_screen = NULL;
 static lv_obj_t *s_label_merit = NULL;
 static lv_obj_t *s_label_combo = NULL;
@@ -50,15 +50,11 @@ static lv_obj_t *s_fish_dot = NULL;
 static lv_obj_t *s_label_title = NULL;
 static lv_obj_t *s_label_tip = NULL;
 
-// 动画
-static bool s_animating = false;
-static uint32_t s_anim_time = 0;
-
-// 屏幕尺寸
+// Screen size
 #define SCR_W 128
 #define SCR_H 160
 
-// 颜色
+// Colors
 #define C_BG    0x1A1A2E
 #define C_GOLD  0xFFD700
 #define C_RED   0xFF4444
@@ -67,13 +63,14 @@ static uint32_t s_anim_time = 0;
 #define C_INK   0x00FF88
 
 static void refresh_merit(void) {
-    if (s_label_merit) {
-        lv_label_set_text_fmt(s_label_merit, "功德: %d", s_wf.merit_count);
+    if (s_label_merit && bsp_lvgl_lock(100)) {
+        lv_label_set_text_fmt(s_label_merit, "GongDe: %d", s_wf.merit_count);
+        bsp_lvgl_unlock();
     }
 }
 
 static void refresh_combo(void) {
-    if (s_label_combo) {
+    if (s_label_combo && bsp_lvgl_lock(100)) {
         if (s_wf.hit_count >= 3) {
             lv_label_set_text_fmt(s_label_combo, "x%d", s_wf.hit_count);
             lv_obj_set_style_text_font(s_label_combo, &lv_font_montserrat_20, 0);
@@ -81,18 +78,19 @@ static void refresh_combo(void) {
         } else {
             lv_label_set_text(s_label_combo, "");
         }
+        bsp_lvgl_unlock();
     }
 }
 
-// 简单的敲击音效生成 (800Hz 正弦波,衰减)
+// Simple beep sound generation (sine wave with decay)
 static void play_beep(int freq, int duration_ms) {
     const int sample_rate = 8000;
     const int num_samples = sample_rate * duration_ms / 1000;
-    static int16_t pcm[8000];  // 最多1秒
+    static int16_t pcm[8000];
     
     for (int i = 0; i < num_samples && i < 8000; i++) {
         float t = (float)i / sample_rate;
-        float decay = expf(-t * 20.0f);  // 指数衰减
+        float decay = expf(-t * 20.0f);
         pcm[i] = (int16_t)(sinf(2 * M_PI * freq * t) * 16000 * decay);
     }
     
@@ -101,22 +99,16 @@ static void play_beep(int freq, int duration_ms) {
 }
 
 static void play_hit_effect(void) {
-    // 缩放动画
+    if (!bsp_lvgl_lock(500)) return;
+    
+    // Hit animation - scale effect
     if (s_fish_body) {
-        static int orig_x = 10, orig_y = 25, orig_w = 108, orig_h = 95;
-        
-        lv_obj_set_pos(s_fish_body, orig_x + 4, orig_y + 2);
-        lv_obj_set_size(s_fish_body, orig_w - 8, orig_h - 4);
-        
-        s_animating = true;
-        s_anim_time = esp_timer_get_time() / 1000;
+        lv_obj_set_pos(s_fish_body, 14, 27);
+        lv_obj_set_size(s_fish_body, 100, 91);
     }
     
-    // 功德飞字效果
-    static lv_obj_t *merit_pop = NULL;
-    if (merit_pop) lv_obj_delete(merit_pop);
-    
-    merit_pop = lv_label_create(s_screen);
+    // Merit popup effect
+    lv_obj_t *merit_pop = lv_label_create(s_screen);
     lv_label_set_text(merit_pop, "+1");
     lv_obj_set_pos(merit_pop, 50, 60);
     lv_obj_set_style_text_color(merit_pop, lv_color_hex(C_GOLD), 0);
@@ -131,20 +123,30 @@ static void play_hit_effect(void) {
     lv_anim_set_path_cb(&a, &lv_anim_path_ease_out);
     lv_anim_start(&a);
     
+    bsp_lvgl_unlock();
+    
     vTaskDelay(pdMS_TO_TICKS(500));
-    lv_obj_delete(merit_pop);
+    
+    if (bsp_lvgl_lock(500)) {
+        lv_obj_delete(merit_pop);
+        if (s_fish_body) {
+            lv_obj_set_pos(s_fish_body, 10, 25);
+            lv_obj_set_size(s_fish_body, 108, 95);
+        }
+        bsp_lvgl_unlock();
+    }
 }
 
 static void do_hit(void) {
     uint32_t now = esp_timer_get_time() / 1000;
     
-    // 冷却检查
+    // Cooldown check
     if (now - s_wf.last_hit_time < HIT_COOLDOWN_MS) {
         return;
     }
     s_wf.last_hit_time = now;
     
-    // 计算功德
+    // Calculate merit
     int merit_gain = 1;
     s_wf.hit_count++;
     
@@ -159,10 +161,10 @@ static void do_hit(void) {
     
     s_wf.state = WF_STATE_HIT;
     
-    // 播放音效
+    // Play sound
     play_beep(800, 100);
     
-    // 更新 UI
+    // Update UI
     refresh_merit();
     refresh_combo();
     play_hit_effect();
@@ -183,14 +185,6 @@ static void do_shake(void) {
     play_beep(1200, 150);
     refresh_merit();
     
-    // 特效
-    if (s_label_merit) {
-        static bool toggle = false;
-        toggle = !toggle;
-        lv_obj_set_style_text_color(s_label_merit, 
-            toggle ? lv_color_hex(C_GOLD) : lv_color_hex(0xFFFFFF), 0);
-    }
-    
     ESP_LOGI(TAG, "Shake! Bonus: %d, Total: %d", bonus, s_wf.merit_count);
 }
 
@@ -202,48 +196,39 @@ static void do_reset(void) {
     ESP_LOGI(TAG, "Reset");
 }
 
-static void anim_restore(void *obj, int32_t v) {
-    (void)v;
-    if (s_fish_body) {
-        lv_obj_set_pos(s_fish_body, 10, 25);
-        lv_obj_set_size(s_fish_body, 108, 95);
-    }
-}
-
 void demo_wooden_fish_enter(void) {
     ESP_LOGI(TAG, "Enter wooden fish");
     
-    // 重置状态
+    // Reset state
     s_wf.state = WF_STATE_IDLE;
     s_wf.hit_count = 0;
     s_wf.last_hit_time = 0;
-    s_animating = false;
     
-    // 创建屏幕
-    s_screen = ui_pixel_screen_create("木鱼");
+    // Create screen
+    s_screen = ui_pixel_screen_create("Fish");
     lv_obj_set_style_bg_color(s_screen, lv_color_hex(C_BG), 0);
     
-    // 标题
+    // Title
     s_label_title = lv_label_create(s_screen);
-    lv_label_set_text(s_label_title, "🪷 敲木鱼");
-    lv_obj_set_pos(s_label_title, 32, 3);
+    lv_label_set_text(s_label_title, "Wooden Fish");
+    lv_obj_set_pos(s_label_title, 30, 3);
     lv_obj_set_style_text_color(s_label_title, lv_color_hex(C_GOLD), 0);
     lv_obj_set_style_text_font(s_label_title, &lv_font_montserrat_14, 0);
     
-    // 功德显示
+    // Merit display
     s_label_merit = lv_label_create(s_screen);
-    lv_label_set_text_fmt(s_label_merit, "功德: 0");
+    lv_label_set_text_fmt(s_label_merit, "GongDe: 0");
     lv_obj_set_pos(s_label_merit, 5, 17);
     lv_obj_set_style_text_color(s_label_merit, lv_color_hex(C_GOLD), 0);
     lv_obj_set_style_text_font(s_label_merit, &lv_font_montserrat_14, 0);
     
-    // 连击显示
+    // Combo display
     s_label_combo = lv_label_create(s_screen);
     lv_label_set_text(s_label_combo, "");
     lv_obj_set_pos(s_label_combo, 88, 125);
     lv_obj_set_style_text_color(s_label_combo, lv_color_hex(C_RED), 0);
     
-    // 木鱼身体 (椭圆形)
+    // Fish body (oval shape)
     s_fish_body = lv_obj_create(s_screen);
     lv_obj_set_pos(s_fish_body, 10, 25);
     lv_obj_set_size(s_fish_body, 108, 95);
@@ -252,24 +237,24 @@ void demo_wooden_fish_enter(void) {
     lv_obj_set_style_border_width(s_fish_body, 2, 0);
     lv_obj_set_style_border_color(s_fish_body, lv_color_hex(C_LIGHT), 0);
     
-    // 木鱼装饰线
+    // Fish decoration line
     lv_obj_t *line = lv_line_create(s_fish_body);
     static lv_point_precise_t p[] = {{30, 45}, {78, 45}};
     lv_line_set_points(line, p, 2);
     lv_obj_set_style_line_color(line, lv_color_hex(C_LIGHT), 0);
     lv_obj_set_style_line_width(line, 2, 0);
     
-    // 木鱼中心圆点
+    // Fish center dot
     s_fish_dot = lv_obj_create(s_fish_body);
     lv_obj_set_pos(s_fish_dot, 44, 35);
     lv_obj_set_size(s_fish_dot, 20, 20);
     lv_obj_set_style_bg_color(s_fish_dot, lv_color_hex(C_LIGHT), 0);
     lv_obj_set_style_radius(s_fish_dot, 10, 0);
     
-    // 提示
+    // Hint text
     s_label_tip = lv_label_create(s_screen);
-    lv_label_set_text(s_label_tip, "OK敲 UP摇 DOWN重置");
-    lv_obj_set_pos(s_label_tip, 8, 145);
+    lv_label_set_text(s_label_tip, "OK:Hit UP:Shake DOWN:Reset");
+    lv_obj_set_pos(s_label_tip, 2, 145);
     lv_obj_set_style_text_color(s_label_tip, lv_color_hex(0x666666), 0);
     lv_obj_set_style_text_font(s_label_tip, &lv_font_montserrat_14, 0);
     
@@ -279,32 +264,36 @@ void demo_wooden_fish_enter(void) {
 void demo_wooden_fish_exit(void) {
     ESP_LOGI(TAG, "Exit wooden fish");
     
-    if (s_screen) {
-        lv_obj_delete(s_screen);
-        s_screen = NULL;
-        s_label_merit = NULL;
-        s_label_combo = NULL;
-        s_fish_body = NULL;
-        s_fish_dot = NULL;
-        s_label_title = NULL;
-        s_label_tip = NULL;
+    if (bsp_lvgl_lock(1000)) {
+        if (s_screen) {
+            lv_obj_delete(s_screen);
+            s_screen = NULL;
+            s_label_merit = NULL;
+            s_label_combo = NULL;
+            s_fish_body = NULL;
+            s_fish_dot = NULL;
+            s_label_title = NULL;
+            s_label_tip = NULL;
+        }
+        bsp_lvgl_unlock();
     }
 }
 
 void demo_wooden_fish_key(bsp_btn_t btn, bsp_btn_ev_t ev) {
-    if (ev != BSP_BTN_CLICK) return;
-    
-    switch (btn) {
-        case BSP_BTN_OK:
-            do_hit();
-            break;
-        case BSP_BTN_UP:
-            do_shake();
-            break;
-        case BSP_BTN_DOWN:
-            do_reset();
-            break;
-        default:
-            break;
+    // Handle CLICK events
+    if (ev == BSP_BTN_CLICK) {
+        switch (btn) {
+            case BSP_BTN_OK:
+                do_hit();
+                break;
+            case BSP_BTN_UP:
+                do_shake();
+                break;
+            case BSP_BTN_DOWN:
+                do_reset();
+                break;
+            default:
+                break;
+        }
     }
 }
