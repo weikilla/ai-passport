@@ -9,16 +9,13 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_random.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include <math.h>
 
 static const char *TAG = "wooden_fish";
 
 #define WOODEN_FISH_MAX_MERIT 99999
-#define HIT_COOLDOWN_MS    200
+#define HIT_COOLDOWN_MS    150
 
-// Wooden fish state
 static int s_merit_count = 0;
 static int s_hit_count = 0;
 static uint32_t s_last_hit_time = 0;
@@ -27,6 +24,8 @@ static uint32_t s_last_hit_time = 0;
 static lv_obj_t *s_screen = NULL;
 static lv_obj_t *s_label_merit = NULL;
 static lv_obj_t *s_label_combo = NULL;
+static lv_obj_t *s_fish = NULL;
+static lv_obj_t *s_fish_center = NULL;
 
 static void refresh_display(void) {
     if (s_label_merit) {
@@ -41,7 +40,6 @@ static void refresh_display(void) {
     }
 }
 
-// Simple beep sound
 static void play_beep(int freq, int duration_ms) {
     const int sample_rate = 8000;
     const int num_samples = sample_rate * duration_ms / 1000;
@@ -75,6 +73,13 @@ static void do_hit(void) {
     s_merit_count += merit_gain;
     if (s_merit_count > WOODEN_FISH_MAX_MERIT) {
         s_merit_count = WOODEN_FISH_MAX_MERIT;
+    }
+    
+    // Hit animation - quick scale
+    if (s_fish) {
+        lv_obj_set_x(s_fish, 18);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        lv_obj_set_x(s_fish, 14);
     }
     
     play_beep(800, 80);
@@ -112,30 +117,63 @@ void demo_wooden_fish_enter(void) {
     
     // Create screen with title
     s_screen = ui_pixel_screen_create("FISH");
+    lv_obj_set_style_bg_color(s_screen, lv_color_hex(UI_PAPER), 0);
     
-    // Create main panel
-    lv_obj_t *panel = ui_pixel_panel_create(s_screen, 12, 28, 104, 100, UI_PAPER);
-    lv_obj_set_style_radius(panel, 12, 0);
+    // Merit number (top area)
+    lv_obj_t *top_bar = lv_obj_create(s_screen);
+    lv_obj_set_pos(top_bar, 0, 0);
+    lv_obj_set_size(top_bar, 128, 30);
+    lv_obj_set_style_bg_color(top_bar, lv_color_hex(UI_INK), 0);
     
-    // Title label
-    lv_obj_t *title = ui_pixel_label(panel, "WOODEN FISH", &lv_font_montserrat_14, UI_INK);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    
-    // Merit number display (big and centered)
-    s_label_merit = lv_label_create(panel);
+    s_label_merit = lv_label_create(top_bar);
     lv_label_set_text_fmt(s_label_merit, "0");
     lv_obj_set_style_text_font(s_label_merit, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(s_label_merit, lv_color_hex(UI_SKY_DARK), 0);
-    lv_obj_align(s_label_merit, LV_ALIGN_CENTER, 0, 5);
+    lv_obj_set_style_text_color(s_label_merit, lv_color_hex(UI_YELLOW), 0);
+    lv_obj_align(s_label_merit, LV_ALIGN_CENTER, 0, 0);
     
     // Combo display
-    s_label_combo = lv_label_create(panel);
+    s_label_combo = lv_label_create(s_screen);
+    lv_obj_set_pos(s_label_combo, 90, 35);
     lv_obj_set_style_text_font(s_label_combo, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(s_label_combo, lv_color_hex(UI_RED), 0);
-    lv_obj_align(s_label_combo, LV_ALIGN_BOTTOM_MID, 0, -8);
     
-    // Create mascot (the fish)
-    ui_pixel_mascot_create(s_screen, 54, 132);
+    // === Draw wooden fish ===
+    // Fish body - oval shape using rounded rectangle
+    s_fish = lv_obj_create(s_screen);
+    lv_obj_set_pos(s_fish, 14, 45);
+    lv_obj_set_size(s_fish, 100, 80);
+    lv_obj_set_style_bg_color(s_fish, lv_color_hex(0x8B4513), 0);  // Brown
+    lv_obj_set_style_radius(s_fish, 35, 0);
+    lv_obj_set_style_border_width(s_fish, 3, 0);
+    lv_obj_set_style_border_color(s_fish, lv_color_hex(0xD2691E), 0);  // Lighter brown
+    
+    // Fish top decoration line
+    lv_obj_t *line1 = lv_obj_create(s_fish);
+    lv_obj_set_pos(line1, 20, 20);
+    lv_obj_set_size(line1, 60, 2);
+    lv_obj_set_style_bg_color(line1, lv_color_hex(0xD2691E), 0);
+    lv_obj_set_style_radius(line1, 1, 0);
+    
+    // Fish center circle
+    s_fish_center = lv_obj_create(s_fish);
+    lv_obj_set_pos(s_fish_center, 35, 28);
+    lv_obj_set_size(s_fish_center, 30, 30);
+    lv_obj_set_style_bg_color(s_fish_center, lv_color_hex(0xD2691E), 0);
+    lv_obj_set_style_radius(s_fish_center, 15, 0);
+    
+    // Inner dot
+    lv_obj_t *inner = lv_obj_create(s_fish_center);
+    lv_obj_set_pos(inner, 10, 10);
+    lv_obj_set_size(inner, 10, 10);
+    lv_obj_set_style_bg_color(inner, lv_color_hex(0x4A2511), 0);
+    lv_obj_set_style_radius(inner, 5, 0);
+    
+    // === Bottom hint ===
+    lv_obj_t *hint = lv_label_create(s_screen);
+    lv_label_set_text(hint, "OK:HIT UP:+ DOWN:CLR");
+    lv_obj_set_pos(hint, 5, 132);
+    lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(hint, lv_color_hex(UI_MUTED), 0);
     
     lv_screen_load(s_screen);
 }
@@ -148,6 +186,8 @@ void demo_wooden_fish_exit(void) {
         s_screen = NULL;
         s_label_merit = NULL;
         s_label_combo = NULL;
+        s_fish = NULL;
+        s_fish_center = NULL;
     }
 }
 
