@@ -1,0 +1,10 @@
+name: Build Wooden Fish
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: echo "Build wooden fish"
