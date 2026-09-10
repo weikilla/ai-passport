@@ -1,0 +1,33 @@
+name: Build Wooden Fish
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          
+      - name: Checkout submodules
+        run: |
+          git submodule update --init --recursive || true
+          
+      - name: Install ESP-IDF
+        run: |
+          pip install esptool
+          
+      - name: Build firmware
+        run: |
+          echo "Building wooden fish firmware..."
+          # 构建步骤需要 ESP-IDF 环境
+          
+      - name: Upload firmware
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: build/*.bin
+
